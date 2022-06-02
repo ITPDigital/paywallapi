@@ -76,26 +76,7 @@ class UserHelper {
 	   return $count;    
    }
 
-  public function sendMail($db, $mail, $data) {
-	$reset_key = bin2hex(random_bytes(20));
-	$service_name = 'resetpassword_' . $data->brand_id;
-	$domian = $_SERVER['HTTP_HOST'];
-	$expire = time() + (60 * 60 * 24);
-	$cquery = $db->prepare('SELECT count(*) from user_reset_password WHERE email= :email');
-	$cquery->execute(array(':email' => $data->email));
-	$ncount =  $cquery->fetchColumn();
-	if ($ncount) {
-	  $sql = $db->prepare('UPDATE user_reset_password SET reset_key= :reset_key, expire = :expire WHERE email= :email');
-	  $sql->execute(array(':email' => $data->email,':reset_key' => $reset_key,':expire' => $expire));					
-	}
-	else {
-	  $sql = $db->prepare('INSERT INTO user_reset_password (email, reset_key, expire) VALUES (:email, :reset_key, :expire)');
-	  $sql->execute(array(':email' => $data->email,':reset_key' => $reset_key,':expire' => $expire));					
-	}
-	$link = $domian . '/subscriptions/reset-password?resetAttributeKey= '  . $reset_key . ' &serviceName=' . $service_name;
-	$mail_body = '<h2>Please click the link below to reset your password.</h2>';
-	$mail_body .= '<a href="' . $link . '">' . $link . '</a>';
-
+  public function sendMail($mail) {
 	$mail->SMTPDebug=3;
 	$mail->isSMTP();
 
@@ -103,12 +84,12 @@ class UserHelper {
 	$mail->Port=587;
 	$mail->SMTPSecure="tls";
 	$mail->SMTPAuth=true;
-	$mail->Username="AKIA4UTH2DF5H6RI6QRE";
-	$mail->Password="BMSN5Rsy8JMhDtV2W/xt4qJMjxMQAlX/04XLkXxiliM1";
-	$mail->addAddress($data->email);
-	$mail->Subject="Reset Your Password";
+	$mail->Username="AKIA4UTH2DF5CFF66DFA";
+	$mail->Password="BM42vtbps2GqkvZGNAdxHbcuovj8xy5nkqzf/ycct7Rw";
+	//$mail->addAddress($data->email);
+	//$mail->Subject="Reset Your Password";
 	$mail->isHTML(true);
-	$mail->Body= $mail_body;
+	//$mail->Body= $mail_body;
 	$mail->From="webmaster@itp.com";
 	$mail->FromName="Webmaster";
 	$output = false;

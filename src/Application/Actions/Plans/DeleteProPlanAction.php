@@ -41,28 +41,43 @@ class DeleteProPlanAction implements RequestHandlerInterface
             $date = date('Y-m-d h:i:s');
             $this->logger->info('DeleteProPlanAction: product plan id'.$id);
             $db =  $this->connection;
-            $sql = $db->prepare('UPDATE product_plan set is_active = :status,updated_by =:user_id, updated_on=:updated_on  where id = :id and comp_id = :comp_id');
-            $sql->execute(array(':status' => $status,':user_id' => $user_id,'updated_on'=> $date,':id' => $id,':comp_id' => $comp_id));
-            $count = $sql->rowCount();
             $response = new Response();
-            if($count > 0){
-                $this->logger->info('DeleteBrandAction: Product plan status updated successfully'.$id);
+            $mappedPlan = $db->prepare('SELECT product_id as id from map_plan_product WHERE plan_id=:plan_id and is_active=:status;');
+            $mappedPlan->execute(array(':plan_id' => $id,':status' => 1));
+            $mappedPlan = $mappedPlan->fetchAll(PDO::FETCH_OBJ);
+            $response = new Response();
+            if(count($mappedPlan)>0) {
                 $response->getBody()->write(
                     json_encode(array(
                         "code" => 1,
-                        "status" => 1,
-                        "message" => "Product plan updated successfully"
+                        "status" => 2,
+                        "result" => $mappedPlan,
+                        "message" => "Plan is mapped with product"
                     ))
                 );
             } else {
-                $this->logger->info('DeleteBrandAction: Product plan not found'.$id);
-                $response->getBody()->write(
-                    json_encode(array(
-                        "code" => 0,
-                        "status" => 1,
-                        "message" => "Product plan not found"
-                    ))
-                );
+                $sql = $db->prepare('UPDATE product_plan set is_active = :status,updated_by =:user_id, updated_on=:updated_on  where id = :id and comp_id = :comp_id');
+                $sql->execute(array(':status' => $status,':user_id' => $user_id,'updated_on'=> $date,':id' => $id,':comp_id' => $comp_id));
+                $count = $sql->rowCount();
+                if($count > 0){
+                    $this->logger->info('DeleteBrandAction: Product plan status updated successfully'.$id);
+                    $response->getBody()->write(
+                        json_encode(array(
+                            "code" => 1,
+                            "status" => 1,
+                            "message" => "Product plan updated successfully"
+                        ))
+                    );
+                } else {
+                    $this->logger->info('DeleteBrandAction: Product plan not found'.$id);
+                    $response->getBody()->write(
+                        json_encode(array(
+                            "code" => 0,
+                            "status" => 1,
+                            "message" => "Product plan not found"
+                        ))
+                    );
+                }
             }
         }
         catch(MySQLException $e) {

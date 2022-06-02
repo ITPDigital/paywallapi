@@ -41,28 +41,42 @@ class DeleteProPlanPromoAction implements RequestHandlerInterface
             $date = date('Y-m-d h:i:s');
             $this->logger->info('DeleteProPlanPromoAction: product plan feature id'.$id);
             $db =  $this->connection;
-            $sql = $db->prepare('UPDATE product_plan_promos set is_active = :status,updated_by =:user_id, updated_on=:updated_on  where id = :id and comp_id = :comp_id');
-            $sql->execute(array(':status' => $status,':user_id' => $user_id,'updated_on'=> $date,':id' => $id,':comp_id' => $comp_id));
-            $count = $sql->rowCount();
+            $mappedPromo = $db->prepare('SELECT discount_id as id from map_promo_discount WHERE promo_id=:promo_id and is_active=:status;');
+            $mappedPromo->execute(array(':promo_id' => $id,':status' => 1));
+            $mappedPromo = $mappedPromo->fetchAll(PDO::FETCH_OBJ);
             $response = new Response();
-            if($count > 0){
-                $this->logger->info('DeleteProPlanPromoAction: Product plan promo status updated successfully'.$id);
+            if(count($mappedPromo)>0) {
                 $response->getBody()->write(
                     json_encode(array(
                         "code" => 1,
-                        "status" => 1,
-                        "message" => "Product plan promo status updated successfully"
+                        "status" => 2,
+                        "result" => $mappedPromo,
+                        "message" => "Promo is mapped with discount"
                     ))
                 );
             } else {
-                $this->logger->info('DeleteProPlanPromoAction: Product plan promo not found'.$id);
-                $response->getBody()->write(
-                    json_encode(array(
-                        "code" => 0,
-                        "status" => 1,
-                        "message" => "Product plan promo not found"
-                    ))
-                );
+                $sql = $db->prepare('UPDATE product_plan_promos set is_active = :status,updated_by =:user_id, updated_on=:updated_on  where id = :id and comp_id = :comp_id');
+                $sql->execute(array(':status' => $status,':user_id' => $user_id,'updated_on'=> $date,':id' => $id,':comp_id' => $comp_id));
+                $count = $sql->rowCount();
+                if($count > 0){
+                    $this->logger->info('DeleteProPlanPromoAction: Product plan promo status updated successfully'.$id);
+                    $response->getBody()->write(
+                        json_encode(array(
+                            "code" => 1,
+                            "status" => 1,
+                            "message" => "Product plan promo status updated successfully"
+                        ))
+                    );
+                } else {
+                    $this->logger->info('DeleteProPlanPromoAction: Product plan promo not found'.$id);
+                    $response->getBody()->write(
+                        json_encode(array(
+                            "code" => 0,
+                            "status" => 1,
+                            "message" => "Product plan promo not found"
+                        ))
+                    );
+                }
             }
         }
         catch(MySQLException $e) {

@@ -48,9 +48,7 @@ class UpdateProPlanPromoAction implements RequestHandlerInterface
             ->notEmptyString('start_date', 'Field required')
 			->requirePresence('start_date')
             ->notEmptyString('end_date', 'Field required')
-			->requirePresence('end_date')
-            ->notEmptyString('status', 'Field required')
-			->requirePresence('status');
+			->requirePresence('end_date');
 
         $validationResult = $validationFactory->createValidationResult(
             $validator->validate($validateData)
@@ -68,14 +66,13 @@ class UpdateProPlanPromoAction implements RequestHandlerInterface
             $start_date = isset($data['start_date']) ? $data["start_date"] : '';
             $end_date = isset($data['end_date']) ? $data["end_date"] :  '';
             $user_id = $request->getAttribute('userid');
-            $status = ($data['status'] == 1) ? 1 : 0;
             $date = date('Y-m-d h:i:s');
 
             $this->logger->info('UpdateProPlanPromoAction: Product plan feature id'.$id.'--comp_id----'.$comp_id);
             $db =  $this->connection;
             $response = new Response();
-            $sql = $db->prepare("UPDATE product_plan_promos set promo_code = :promo_code,promo_name = :promo_name,description = :description,is_active=:status,updated_by=:updated_by,updated_on=:updated_on,start_date=:start_date,end_date=:end_date,updated_on=:updated_on where id = :id and comp_id = :comp_id");		
-            $sql->execute(array(':promo_code'=>$promo_code,':promo_name'=>$promo_name,':description'=>$description,':status' => $status,':updated_by' => $user_id, ':updated_on' => $date,':start_date' => $start_date,':end_date' => $end_date,':id' => $id,':comp_id' => $comp_id));
+            $sql = $db->prepare("UPDATE product_plan_promos set promo_code = :promo_code,promo_name = :promo_name,description = :description,updated_by=:updated_by,updated_on=:updated_on,start_date=:start_date,end_date=:end_date,updated_on=:updated_on where id = :id and comp_id = :comp_id");		
+            $sql->execute(array(':promo_code'=>$promo_code,':promo_name'=>$promo_name,':description'=>$description,':updated_by' => $user_id, ':updated_on' => $date,':start_date' => $start_date,':end_date' => $end_date,':id' => $id,':comp_id' => $comp_id));
             $count = $sql->rowCount();
             if($count) {
                 $this->logger->info('UpdateProPlanPromoAction: Product plan promo detail updated successfully'.$id);

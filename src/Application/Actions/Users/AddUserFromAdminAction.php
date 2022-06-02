@@ -21,7 +21,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 
-class RegisterAction implements RequestHandlerInterface
+class AddUserFromAdminAction implements RequestHandlerInterface
 {
     private $logger;
     private $connection;
@@ -32,37 +32,9 @@ class RegisterAction implements RequestHandlerInterface
         $this->logger = $logger;
     }
 
-    public function getBrandId($db, $brand_domain){
-		$sql = $db->prepare('SELECT id from brands where domain_name=:domain_name and is_active=:status');
-		$sql->execute(array(':domain_name' => $brand_domain,':status' => 1));
-		$brandDatas = $sql->fetch(PDO::FETCH_ASSOC);
-		$brandId = 0;
-        $count = $sql->rowCount();
-        if($count>0){
-            $brandId = (int)$brandDatas['id'];
-        }
-        return $brandId;
-	}
-	
-    public function RegisterSuccessMail( $data ) {
-       
-        $mail_body = '<h2>Registered Successfully.</h2>';
-        $mail_body .= '<p>Registered Successfully.</p>';
-        
-        $mail = new PHPMailer;
-        $mail->Body = $mail_body;
-        $mail->Subject="User Registered Successfully";
-        $mail->addAddress($data['email']);
-        $userHelper = new UserHelper();        
-
-        $output = $userHelper->sendMail($mail);
-
-        return  $output;
-    }	
-
     public function handle(ServerRequestInterface $request): ResponseInterface
     {		
-        $this->logger->info('Home page handler dispatched');
+        $this->logger->info('AddUserFromAdminAction handler dispatched');
         $data = $request->getParsedBody();
         $validateData = (array)$request->getParsedBody();
 
@@ -105,8 +77,8 @@ class RegisterAction implements RequestHandlerInterface
 			->requirePresence('country')
             ->notEmptyString('company_size', 'Field required')
 			->requirePresence('company_size')
-			->notEmptyString('brand_domain', 'Field required')
-			->requirePresence('brand_domain');
+			->notEmptyString('brand_id', 'Field required')
+			->requirePresence('brand_id');
 
         $validationResult = $validationFactory->createValidationResult(
             $validator->validate($validateData)
@@ -127,7 +99,7 @@ class RegisterAction implements RequestHandlerInterface
 		$job_title = isset($data['job_title']) ? $data["job_title"] :  '';
 		$country = isset($data['country']) ? $data["country"] :  '';
 		$company_size = isset($data['company_size']) ? $data["company_size"] :  '';
-		$brand_domain = isset($data['brand_domain']) ? $data["brand_domain"] :  '';
+		$brand_id = isset($data['brand_id']) ? $data["brand_id"] :  '';
 		$password = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
 		$date = date('Y-m-d h:i:s');
 		$marketing_optin = isset($data['marketing_optin']) ? $data['marketing_optin'] : '';
@@ -148,14 +120,20 @@ class RegisterAction implements RequestHandlerInterface
         $comp_gift_consent = isset($data['comp_gift_consent']) ? $data['comp_gift_consent'] : '';
         $comp_name = isset($data['comp_name']) ? $data['comp_name'] : '';
 
+        $sub_start_date = isset($data['sub_start_date']) ? $data['sub_start_date'] : '';
+        $sub_end_date = isset($data['sub_end_date']) ? $data['sub_end_date'] : '';
+
 		$response = new Response();
-        $brand_id = $this->getBrandId($db, $brand_domain);
         if($brand_id) {
             $isUserExists = $userHelper->isUserNameExists($db, $email, $brand_id);
             if($isUserExists == 0) {
-                $sql = $db->prepare("INSERT INTO users (brand_id, first_name, last_name, email, password, industry, job_ttl, comp, comp_size, registered_on, status, access_role) 
-                values (:brand_id,:first_name,:last_name,:email,:password,:industry,:job_title,:comp_name,:company_size,:registered_on,:status,:access_role)");
-                $sql->execute(array(':brand_id' => $brand_id, ':first_name' => $first_name, ':last_name' => $last_name, ':email' => $email, ':password' => $password, ':industry' => $industry, ':job_title' => $job_title, ':comp_name' => $comp_name, ':company_size' => $company_size, ':registered_on' => date('Y-m-d h:i:s'), ':status' => 1, ':access_role' => $access_role));
+                $isSubUser = 0;
+                if($access_role==2 || $access_role==3 || $access_role==4) {//2-Free User, 3-Corporate User, 4-Student User
+                    $isSubUser = 1;
+                }
+                $sql = $db->prepare("INSERT INTO users (brand_id, first_name, last_name, email, password, industry, job_ttl, comp, comp_size, registered_on, status, access_role, is_subscribed_user) 
+                values (:brand_id,:first_name,:last_name,:email,:password,:industry,:job_title,:comp_name,:company_size,:registered_on,:status,:access_role,:is_subscribed_user)");
+                $sql->execute(array(':brand_id' => $brand_id, ':first_name' => $first_name, ':last_name' => $last_name, ':email' => $email, ':password' => $password, ':industry' => $industry, ':job_title' => $job_title, ':comp_name' => $comp_name, ':company_size' => $company_size, ':registered_on' => date('Y-m-d h:i:s'), ':status' => 1, ':access_role' => $access_role, ':is_subscribed_user' => $isSubUser));
                 //$sql->debugDumpParams();
                 $count = $sql->rowCount();
                 $lastinserid = $db->lastInsertId();
@@ -165,25 +143,24 @@ class RegisterAction implements RequestHandlerInterface
                     $count += $sql->rowCount();
                 }
                 if( $count > 0 ) {
-                    $userdata = $this->RegisterSuccessMail( $data );
-                        if ($userdata) {
-                            $response->getBody()->write(
-                                json_encode(array(
-                                    "code" => 1,
-                                    "status" => 1,
-                                    "message" => "User Registered and Mail Sent"
-                                ))
-                            );
-                        }
-                        else {
-                            $response->getBody()->write(
-                                json_encode(array(
-                                    "code" => 1,
-                                    "status" => 1,
-                                    "message" => "User Registered and But Mail not Sent"
-                                ))
-                            );						  
-                        }
+                    if($access_role==2 || $access_role==3 || $access_role==4) {//2-Free User, 3-Corporate User, 4-Student User
+                         if($sub_start_date == "") {
+                             $sub_start_date = $date;
+                         }
+                         if($sub_end_date == "") {
+                             $sub_end_date = null;
+                         }
+                         $sql = $db->prepare("INSERT INTO user_license (brand_id, user_id, start_date, end_date, status) VALUES (:brand_id, :user_id, :start_date, :end_date, :status)");
+                         $sql->execute(array(':brand_id' => $brand_id, ':user_id' => $lastinserid, ':start_date' => $sub_start_date, ':end_date' => $sub_end_date, ':status' => 1));
+                     }
+
+                     $response->getBody()->write(
+                         json_encode(array(
+                             "code" => 1,
+                             "status" => 1,
+                             "message" => "New User created from Admin portal"
+                         ))
+                     );
                 } else {
                     $response->getBody()->write(
                         json_encode(array(

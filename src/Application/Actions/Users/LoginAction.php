@@ -68,7 +68,7 @@ class LoginAction implements RequestHandlerInterface
             ->notEmptyString('password', 'Field required')
 			->requirePresence('password')
             ->notEmptyString('brand_domain', 'Field required')
-			->requirePresence('brand_domain');//TODO:get brand id dynamically from request domain
+			->requirePresence('brand_domain');
         $validationResult = $validationFactory->createValidationResult(
             $validator->validate($validateData)
         );
@@ -96,20 +96,26 @@ class LoginAction implements RequestHandlerInterface
                         $brand_id = (int) $data[0]->brand_id;
                         $token = JWT::encode(['id' => $brand, 'email' => $email], "TOURSECERTKEY", "HS256");//create new token for api authorization
                         $comp_id=1;
-                        $userData = array('id' => $userId, 'brand' => $brand_id, 'is_sub_user' => $data[0]->is_subscribed_user, 'fst_name' => $data[0]->first_name, 'last_name' => $data[0]->last_name, 'email' => $data[0]->email);
+                        $userData = array('id' => $userId, 'brand' => $brand_id, 'access_role' => $data[0]->access_role, 'fst_name' => $data[0]->first_name, 'last_name' => $data[0]->last_name, 'email' => $data[0]->email);
                         //if($this->isValidUserSession($userSession)) {
                             $this->logger->info('Login action: User found '.$email);
                             $sql = $db->prepare("UPDATE users set last_logged_on=:last_logged_on where email = :email");	
                             $sql->execute(array(':last_logged_on' => date('Y-m-d h:i:s'),':email' => $email));
                             $checksum = $userId . "|" . $brand_id;
                             $checksum = hash('sha256', $checksum);
+                            $sql = $db->prepare('SELECT id from user_license where brand_id=:brand_id and user_id=:userId and status=:status and DATE(start_date) < CURDATE() and DATE(end_date) > CURDATE()');
+                            $sql->execute(array(':brand_id' => $brand_id,':userId' => $userId,':status' => 1));
+                            $orderData = $sql->fetchAll(PDO::FETCH_OBJ);
+                            $data = array('userObj' => $userData, 
+                                'orderObj' => $orderData
+                            );
                             $response->getBody()->write(
                                 json_encode(array(
                                     "code" => 1,
                                     "status" => 1,
                                     "message" => "User found",
                                     "token" => $token,
-                                    "data" => $userData,
+                                    "result" => $data,
                                     "checksum" => $checksum
                                 ))
                             );

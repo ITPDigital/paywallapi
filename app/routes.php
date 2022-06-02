@@ -11,10 +11,19 @@ use App\Application\Actions\Users\UpdateUserAction;
 use App\Application\Actions\Users\ListUserAction;
 use App\Application\Actions\Users\DeleteUserAction;
 use App\Application\Actions\Users\ForgotPasswordAction;
+use App\Application\Actions\Users\ResetPasswordAction;
 use App\Application\Actions\Users\UpdateUserFromAdminAction;
+use App\Application\Actions\Users\AddUserFromAdminAction;
+use App\Application\Actions\Users\ViewUserWithOrderAction;
 
 use App\Application\Actions\Admin\AdminLoginAction;
-use App\Application\Actions\Admin\AddAdminUserAction;
+use App\Application\Actions\Admin\AdminChangePwdAction;
+use App\Application\Actions\Admin\Users\AddAdminUserAction;
+use App\Application\Actions\Admin\Users\DeleteAdminUserAction;
+use App\Application\Actions\Admin\Users\ListAdminUserAction;
+use App\Application\Actions\Admin\Users\UpdateAdminUserAction;
+use App\Application\Actions\Admin\Users\ViewAdminUserAction;
+use App\Application\Actions\Admin\Users\UpdateAdminUserPwdAction;
 
 use App\Application\Actions\Brands\AddBrandAction;
 use App\Application\Actions\Brands\ViewBrandAction;
@@ -27,6 +36,7 @@ use App\Application\Actions\Products\AddProductAction;
 use App\Application\Actions\Products\ViewProductAction;
 use App\Application\Actions\Products\ListProductAction;
 use App\Application\Actions\Products\ListBrandProductAction;
+use App\Application\Actions\Products\ListSubBrandProductAction;
 use App\Application\Actions\Products\GetProductPromoPlanAction;
 use App\Application\Actions\Products\DeleteProductAction;
 use App\Application\Actions\Products\UpdateProductAction;
@@ -60,10 +70,25 @@ use App\Application\Actions\PlanDiscounts\UpdateProPlanDiscountAction;
 
 use App\Application\Actions\Constants\ListAllPeriodsByStatusAction;
 use App\Application\Actions\Constants\ListAllCurrenciesByStatusAction;
+use App\Application\Actions\Constants\ListAllUserRolesByStatusAction;
+
+use App\Application\Actions\EmailTemplates\AddEmailTypeAction;
+use App\Application\Actions\EmailTemplates\ListEmailTypeAction;
+
+use App\Application\Actions\Widgets\AddWidgetGroupAction;
+use App\Application\Actions\Widgets\ListWidgetGroupAction;
+use App\Application\Actions\Widgets\ListAllWidgetsAction;
+use App\Application\Actions\Widgets\ViewWidgetAction;
+use App\Application\Actions\Widgets\DeleteWidgetAction;
+use App\Application\Actions\Widgets\ListAllWidgetConstantsAction;
+use App\Application\Actions\Widgets\AddWidgetAction;
+use App\Application\Actions\Widgets\UpdateWidgetAction;
 
 use App\Application\Actions\Orders\AddOrderAction;
+use App\Application\Actions\Orders\ViewOrderAction;
 
 use App\Application\Actions\Tracking\SiteAuthorizeAction;
+use App\Application\Actions\Tracking\GetBrandDetailsAction;
 
 use Slim\App;
 use Slim\Interfaces\RouteCollectorProxyInterface as Group;
@@ -75,7 +100,7 @@ use \Firebase\JWT\JWT;
 use Slim\Exception\HttpNotFoundException;
 
 use App\Application\Middleware\UserMiddleware;
-//use App\Application\Middleware\AdminMiddleware;
+use App\Application\Middleware\AdminRoleMiddleware;
 
 return function (App $app) {
    $app->options('/{routes:.+}', function (Request $request, Response $response) {
@@ -101,7 +126,7 @@ return function (App $app) {
 
     $app->get('/db-test', function (Request $request, Response $response) {
         $db = $this->get(PDO::class);
-        $sth = $db->prepare("SELECT * FROM users limit 10");
+        $sth = $db->prepare("select * from email_type");
         $sth->execute();
         $data = $sth->fetchAll(PDO::FETCH_ASSOC);
         $payload = json_encode($data);
@@ -130,27 +155,39 @@ return function (App $app) {
     });
 
     //tracking actions
-    $app->post('/v1/authorize/{brandId}', SiteAuthorizeAction::class);
+    //$app->post('/v1/authorize', SiteAuthorizeAction::class)->add(new SiteAuthMiddleware());
+    $app->post('/v1/authorize', GetBrandDetailsAction::class);
+    $app->post('/v1/subscription/plans', ListSubBrandProductAction::class);
 
     //user actions
     $app->post('/login', LoginAction::class);
     $app->post('/register', RegisterAction::class);	
     $app->post('/forgotpassword', ForgotPasswordAction::class);	
+    $app->post('/reset-password/{token}', ResetPasswordAction::class);	
 
     //admin actions
    // $app->post('/admin/login', AdminLoginAction::class);
     //$app->post('/admin/add', AddAdminUserAction::class);
 
-       $app->post('/admin/login', AdminLoginAction::class);
+       $app->post('/admin/login', AdminLoginAction::class); 
       // $app->post('/admin/user/add', AddAdminUserAction::class)->add(new UserMiddleware());
       // $app->post('/v1/admin/customer/add', RegisterAction::class)->add(new UserMiddleware());	
 	
     $app->group('/v1/admin', function (Group $group) {
-        $group->post('/user/add', AddAdminUserAction::class);
-        $group->post('/customer/add', RegisterAction::class);
-        $group->get('/customer/{id}/{brandId}', ViewUserAction::class);
+        $group->post('/changepwd', AdminChangePwdAction::class);
+        $group->post('/customer/add', AddUserFromAdminAction::class);
+        $group->get('/customer/{id}/{brandId}', ViewUserWithOrderAction::class);
         $group->post('/customer/{id}/{brandId}', UpdateUserFromAdminAction::class);
     })->add(new UserMiddleware());
+
+    $app->group('/v1/admin/settings', function (Group $group) {
+        $group->post('/user/add', AddAdminUserAction::class);
+        $group->get('/users', ListAdminUserAction::class);
+        $group->get('/user/{id}', ViewAdminUserAction::class);
+        $group->post('/user/del/{id}/{status}', DeleteAdminUserAction::class);
+        $group->post('/user/update/{id}', UpdateAdminUserAction::class);
+        $group->post('/user/updatepwd/{id}', UpdateAdminUserPwdAction::class);
+    })->add(new AdminRoleMiddleware());
 
 	//end user actions
     $app->group('/v1/users', function (Group $group) {
@@ -217,11 +254,31 @@ return function (App $app) {
     $app->group('/v1/constants', function (Group $group) {
         $group->get('/periods/{status}', ListAllPeriodsByStatusAction::class);
         $group->get('/currencies/{status}', ListAllCurrenciesByStatusAction::class);
+        $group->get('/roles/{status}', ListAllUserRolesByStatusAction::class);
+    })->add(new UserMiddleware());
+
+    //Widgets
+    $app->group('/v1/widgets', function (Group $group) {
+        $group->get('/group', ListWidgetGroupAction::class);
+        $group->post('/group/add', AddWidgetGroupAction::class);
+        $group->get('', ListAllWidgetsAction::class);
+        $group->get('/view/{id}', ViewWidgetAction::class);
+        $group->get('/constants', ListAllWidgetConstantsAction::class);
+        $group->post('/del/{id}/{status}', DeleteWidgetAction::class);
+        $group->post('/add', AddWidgetAction::class);
+        $group->post('/update/{id}', UpdateWidgetAction::class);
+    })->add(new UserMiddleware());
+
+    //Email templates
+    $app->group('/v1/email', function (Group $group) {
+        $group->get('/type', ListEmailTypeAction::class);
+        $group->post('/type/add', AddEmailTypeAction::class);
     })->add(new UserMiddleware());
 	
     //order actions
     $app->group('/v1/orders', function (Group $group) {
         $group->post('/add', AddOrderAction::class);
+        $group->get('/view/{userId}/{brandId}', ViewOrderAction::class);        
     })->add(new UserMiddleware());
      
 	 //$group->get('/v1/order', ListOrderAction::class);

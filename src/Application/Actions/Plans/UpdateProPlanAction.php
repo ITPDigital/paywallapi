@@ -64,8 +64,6 @@ class UpdateProPlanAction implements RequestHandlerInterface
             ->requirePresence('tax_value')
             ->notEmptyString('payment_type', 'Field required')
             ->requirePresence('payment_type')
-            ->notEmptyString('status', 'Field required')
-            ->requirePresence('status')
             ->notEmptyString('features', 'Field required')
             ->requirePresence('features');
 
@@ -99,7 +97,6 @@ class UpdateProPlanAction implements RequestHandlerInterface
             $is_comp_gift_enabled = isset($data['is_comp_gift_enabled']) ? $data["is_comp_gift_enabled"] :  '';
             $comp_gift_desc = isset($data['comp_gift_desc']) ? $data["comp_gift_desc"] :  '';
             $show_comp_gift_consent = isset($data['show_comp_gift_consent']) ? $data["show_comp_gift_consent"] :  '';
-            $status = isset($data['status']) ? $data["status"] :  '';
             $date = date('Y-m-d h:i:s');
             $plan_discount = isset($data['plan_discount']) ? $data["plan_discount"] :  0;
 
@@ -129,8 +126,8 @@ class UpdateProPlanAction implements RequestHandlerInterface
                 }
                 $trial_price =  number_format(floor($trialPrice*100)/100, 2);
             }
-            $sql = $db->prepare("UPDATE product_plan set plan_name=:plan_name,plan_display_name=:plan_display_name,plan_desc=:plan_desc,contract_length=:contract_length,auto_renew=:auto_renew,renewal_plan=:renewal_plan,frequency=:frequency,offset=:offset,currency=:currency,base_price=:base_price,tax_code=:tax_code,tax_type=:tax_type,tax_value=:tax_value,final_price=:final_price,trial_price=:trial_price,payment_type=:payment_type,updated_by=:updated_by,updated_on=:updated_on,is_comp_gift_enabled=:is_comp_gift_enabled,comp_gift_desc=:comp_gift_desc,show_comp_gift_consent=:show_comp_gift_consent,is_active=:status where id = :id and comp_id=:comp_id");		
-            $sql->execute(array(':plan_name' => $plan_name,':plan_display_name' => $plan_display_name, ':plan_desc' => $plan_desc,':contract_length' => $contract_length,':auto_renew' => $auto_renew, ':renewal_plan' => $renewal_plan,':frequency' => $frequency, ':offset' => $offset,':currency' => $currency,':base_price' => $base_price,':tax_code' => $tax_code, ':tax_type' => $tax_type,':tax_value' => $tax_value,':final_price' => $final_price,':trial_price' => $trial_price,':payment_type' => $payment_type,':updated_by' => $user_id, ':updated_on' => $date,':is_comp_gift_enabled' => $is_comp_gift_enabled,':comp_gift_desc' => $comp_gift_desc,':show_comp_gift_consent' => $show_comp_gift_consent,':status' => $status, ':id' => $id,':comp_id' => $comp_id));
+            $sql = $db->prepare("UPDATE product_plan set plan_name=:plan_name,plan_display_name=:plan_display_name,plan_desc=:plan_desc,contract_length=:contract_length,auto_renew=:auto_renew,renewal_plan=:renewal_plan,frequency=:frequency,offset=:offset,currency=:currency,base_price=:base_price,tax_code=:tax_code,tax_type=:tax_type,tax_value=:tax_value,final_price=:final_price,trial_price=:trial_price,payment_type=:payment_type,updated_by=:updated_by,updated_on=:updated_on,is_comp_gift_enabled=:is_comp_gift_enabled,comp_gift_desc=:comp_gift_desc,show_comp_gift_consent=:show_comp_gift_consent,discount_id=:discount_id where id = :id and comp_id=:comp_id");		
+            $sql->execute(array(':plan_name' => $plan_name,':plan_display_name' => $plan_display_name, ':plan_desc' => $plan_desc,':contract_length' => $contract_length,':auto_renew' => $auto_renew, ':renewal_plan' => $renewal_plan,':frequency' => $frequency, ':offset' => $offset,':currency' => $currency,':base_price' => $base_price,':tax_code' => $tax_code, ':tax_type' => $tax_type,':tax_value' => $tax_value,':final_price' => $final_price,':trial_price' => $trial_price,':payment_type' => $payment_type,':updated_by' => $user_id, ':updated_on' => $date,':is_comp_gift_enabled' => $is_comp_gift_enabled,':comp_gift_desc' => $comp_gift_desc,':show_comp_gift_consent' => $show_comp_gift_consent,':discount_id' => $plan_discount,':id' => $id,':comp_id' => $comp_id));
             $count = $sql->rowCount();
             if($count) {
                 $this->logger->info('UpdateProPlanAction: Product plan details updated successfully'.$id);

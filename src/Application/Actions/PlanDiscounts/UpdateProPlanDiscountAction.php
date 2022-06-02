@@ -51,9 +51,7 @@ class UpdateProPlanDiscountAction implements RequestHandlerInterface
             ->requirePresence('discount_desc')
 			->requirePresence('promos')
 			->notEmptyString('discount_period', 'Field required')
-			->requirePresence('discount_period')
-            ->notEmptyString('status', 'Field required')
-			->requirePresence('status');
+			->requirePresence('discount_period');
 
         $validationResult = $validationFactory->createValidationResult(
             $validator->validate($validateData)
@@ -73,7 +71,6 @@ class UpdateProPlanDiscountAction implements RequestHandlerInterface
             $discount_desc = isset($data['discount_desc']) ? $data["discount_desc"] :  '';
 			$discount_period = isset($data['discount_period']) ? $data["discount_period"] :  '';
             $user_id = $request->getAttribute('userid');
-            $status = isset($data['status']) ? $data["status"] :  '';
             $date = date('Y-m-d h:i:s');
 
             $promos = isset($data['promos']) ? $data["promos"] :  '';

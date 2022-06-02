@@ -41,10 +41,40 @@ class DeleteProPlanDiscountAction implements RequestHandlerInterface
             $date = date('Y-m-d h:i:s');
             $this->logger->info('DeleteProPlanDiscountAction: product plan feature id'.$id);
             $db =  $this->connection;
+            $response = new Response();
+
+            $mappedDisc = $db->prepare('SELECT id from product_plan WHERE discount_id=:discount_id');
+            $mappedDisc->execute(array(':discount_id' => $id));
+            $mappedDisc = $mappedDisc->fetchAll(PDO::FETCH_OBJ);
+            if(count($mappedDisc)>0) {//direct discount
+                $response->getBody()->write(
+                    json_encode(array(
+                        "code" => 1,
+                        "status" => 2,
+                        "result" => $mappedDisc,
+                        "message" => "Discount is mapped with product plan"
+                    ))
+                );
+                return $response->withHeader('Content-Type', 'application/json');
+            } else {
+                $mappedDisc = $db->prepare('SELECT plan_id as id from map_plan_discount WHERE discount_id=:discount_id and is_active=:status;');
+                $mappedDisc->execute(array(':discount_id' => $id,':status' => 1));
+                $mappedDisc = $mappedDisc->fetchAll(PDO::FETCH_OBJ);
+                if(count($mappedDisc)>0) {//promo discount
+                    $response->getBody()->write(
+                        json_encode(array(
+                            "code" => 1,
+                            "status" => 2,
+                            "result" => $mappedDisc,
+                            "message" => "Discount is mapped with product plan"
+                        ))
+                    );
+                    return $response->withHeader('Content-Type', 'application/json');
+                }
+            }
             $sql = $db->prepare('UPDATE product_plan_discount set is_active = :status,updated_by =:user_id, updated_on=:updated_on where id = :id and comp_id = :comp_id');
             $sql->execute(array(':status' => $status,':user_id' => $user_id,'updated_on'=> $date,':id' => $id,':comp_id' => $comp_id));
             $count = $sql->rowCount();
-            $response = new Response();
             if($count > 0){
                 $this->logger->info('DeleteProPlanDiscountAction: Product plan discount status updated successfully'.$id);
                 $response->getBody()->write(

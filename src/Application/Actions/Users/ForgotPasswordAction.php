@@ -34,6 +34,50 @@ class ForgotPasswordAction implements RequestHandlerInterface
         $this->logger = $logger;
     }
 
+    public function getBrandId($db, $brand_domain){
+		$sql = $db->prepare('SELECT id from brands where domain_name=:domain_name and is_active=:status');
+		$sql->execute(array(':domain_name' => $brand_domain,':status' => 1));
+		$brandDatas = $sql->fetch(PDO::FETCH_ASSOC);
+		$brandId = 0;
+        $count = $sql->rowCount();
+        if($count>0){
+            $brandId = (int)$brandDatas['id'];
+        }
+        return $brandId;
+	}
+    
+    public function resetPasswordMail($db, $data) {
+        $reset_key = bin2hex(random_bytes(20));
+        $service_name = 'resetpassword_' . $data->brand_id;
+        $domian = $_SERVER['HTTP_HOST'];
+        $expire = time() + (60 * 60 * 24);
+        $cquery = $db->prepare('SELECT count(*) from user_reset_password WHERE email= :email and is_active= :status');
+        $cquery->execute(array(':email' => $data->email, ':status' => 1));
+        $ncount =  $cquery->fetchColumn();
+        if ($ncount) {
+          $sql = $db->prepare('UPDATE user_reset_password SET brand_id= :brand_id, reset_key= :reset_key, expire= :expire WHERE email= :email AND brand_id= :brand_id');
+          $sql->execute(array(':brand_id' => $data->brand_id, ':email' => $data->email,':reset_key' => $reset_key,':expire' => $expire));					
+        }
+        else {
+          $sql = $db->prepare('INSERT INTO user_reset_password (brand_id, email, reset_key, expire, is_active) VALUES (:brand_id, :email, :reset_key, :expire, :status)');
+          $sql->execute(array(':brand_id' => $data->brand_id, ':email' => $data->email, ':reset_key' => $reset_key, ':expire' => $expire, ':status' => 1));					
+        }
+
+        $link = $domian . '/subscriptions-new/reset-password.html?resetAttributeKey='  . $reset_key . '&serviceName=' . $service_name;
+        $mail_body = '<h2>Please click the link below to reset your password.</h2>';
+        $mail_body .= '<a href="' . $link . '">' . $link . '</a>';
+        
+        $mail = new PHPMailer;
+        $mail->Body = $mail_body;
+        $mail->Subject="Reset Your Password";
+        $mail->addAddress($data->email);
+        $userHelper = new UserHelper();        
+
+        $output = $userHelper->sendMail($mail);
+
+        return  $output;
+    }    
+
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $this->logger->info('Forgot Password action: handler dispatched');
@@ -49,7 +93,9 @@ class ForgotPasswordAction implements RequestHandlerInterface
 				'rule' => 'email',
 				'message' => 'E-mail must be valid'
 			])
-			->requirePresence('email');
+			->requirePresence('email')
+            ->notEmptyString('brand_domain', 'Field required')
+			->requirePresence('brand_domain');
         $validationResult = $validationFactory->createValidationResult(
             $validator->validate($validateData)
         );
@@ -58,44 +104,56 @@ class ForgotPasswordAction implements RequestHandlerInterface
         }
         try {
             $email = isset($data['email']) ? $data["email"] : '';
+            $brand = isset($data['brand_domain']) ? $data["brand_domain"] :  '';
             $this->logger->info('Forgot Password action: email'.$email);
             $db =  $this->connection;
-            $sql = $db->prepare('SELECT * from users where email= :email and status= :status');
-            $sql->execute(array(':email' => $email, ':status' => 1));
-            $data = $sql->fetchAll(PDO::FETCH_OBJ);
+            $brand_id = $this->getBrandId($db, $brand);
             $response = new Response();
-            if(count($data)>0) {
-				$mail = new PHPMailer;
-				$userHelper = new UserHelper();
-				$userdata = $userHelper->sendMail( $db, $mail, $data[0]);
-				if ($userdata) {
-                  $this->logger->info('Forgot Password action: Reset Password Link Sent '.$email);
-                  $response->getBody()->write(
-                    json_encode(array(
-                        "code" => 1,
-                        "status" => 1,
-                        "message" => "Reset Password Link Sent"
-                    ))
-                  );
-				}
-                else {
-                  $this->logger->info('Forgot Password action: Reset Password Mail is not Sent '.$email);
-                  $response->getBody()->write(
-                    json_encode(array(
-                        "code" => 0,
-                        "status" => 0,
-                        "message" => "Reset Password Mail is not Sent"
-                    ))
-                  );					
-				}				
+           // $brand_id = $brand;
+            if($brand_id != 0) {
+                $sql = $db->prepare('SELECT * from users where brand_id=:brand_id and email= :email and status= :status');
+                $sql->execute(array(':brand_id' => $brand_id, ':email' => $email, ':status' => 1));
+                $data = $sql->fetchAll(PDO::FETCH_OBJ);
+                if(count($data)>0) {
+                    $userdata = $this->resetPasswordMail( $db, $data[0] );
+                    if ($userdata) {
+                    $this->logger->info('Forgot Password action: Reset Password Link Sent '.$email);
+                    $response->getBody()->write(
+                        json_encode(array(
+                            "code" => 1,
+                            "status" => 1,
+                            "message" => "Reset Password Link Sent"
+                        ))
+                    );
+                    }
+                    else {
+                    $this->logger->info('Forgot Password action: Reset Password Mail is not Sent '.$email);
+                    $response->getBody()->write(
+                        json_encode(array(
+                            "code" => 1,
+                            "status" => 4,
+                            "message" => "Reset Password Mail is not Sent"
+                        ))
+                    );					
+                    }				
 				
+                } else {
+                    $this->logger->info('Forgot Password action: Email not found '.$email);
+                    $response->getBody()->write(
+                        json_encode(array(
+                            "code" => 1,
+                            "status" => 3,
+                            "message" => "Email not found"
+                        ))
+                    );
+                }
             } else {
-                $this->logger->info('Forgot Password action: Email not found '.$email);
+
                 $response->getBody()->write(
                     json_encode(array(
                         "code" => 1,
-                        "status" => 3,
-                        "message" => "Email not found"
+                        "status" => 2,
+                        "message" => "Invalid Brand"
                     ))
                 );
             }

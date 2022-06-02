@@ -93,6 +93,10 @@ class UpdateUserFromAdminAction implements RequestHandlerInterface
         $tax_reg_no = isset($data['tax_reg_no']) ? $data['tax_reg_no'] : '';
         $comp_gift_consent = isset($data['comp_gift_consent']) ? $data['comp_gift_consent'] : '';
         $status = isset($data['status']) ? $data['status'] : '';
+        $sub_start_date = isset($data['sub_start_date']) ? $data['sub_start_date'] : '';
+        $sub_end_date = isset($data['sub_end_date']) ? $data['sub_end_date'] : '';
+        $sub_id = isset($data['sub_id']) ? $data['sub_id'] : '';
+        $sub_pro_id = isset($data['sub_pro_id']) ? $data['sub_pro_id'] : '';
         $date = date('Y-m-d h:i:s');
         $updated_by = $request->getAttribute('userid');
 
@@ -127,18 +131,37 @@ class UpdateUserFromAdminAction implements RequestHandlerInterface
             $count += $user_dt_sql->rowCount();
         }
 		$response = new Response();
-		if( $count > 0 ) {
+		//if( $count > 0 ) {
             if($access_role ==2 || $access_role ==3 || $access_role ==4) {
-                $sql = $db->prepare("UPDATE users SET is_subscribed_user = :is_subscribed_user, updated_on = :date, updated_by = :updated_by 
+               /* $sql = $db->prepare("UPDATE users SET is_subscribed_user = :is_subscribed_user, updated_on = :date, updated_by = :updated_by 
                 WHERE id = :user_id AND brand_id = :brand_id and access_role = :access_role");
                 $sql->execute(array(':is_subscribed_user' => 1,':access_role' => $access_role, ':date' => $date, ':updated_by' => $updated_by, ':user_id' => $user_id, ':brand_id' => $brand_id));
+                */
+                if($sub_start_date == "") {
+                    $sub_start_date = $date;
+                }
+                if($sub_end_date == "") {
+                    $sub_end_date = null;
+                }
+                //echo  $sub_end_date;exit;
+                if($sub_id!='') {
+                    $sql = $db->prepare("UPDATE user_license SET start_date = :start_date, end_date = :end_date WHERE id = :id AND user_id = :user_id AND brand_id = :brand_id");
+                    $sql->execute(array(':start_date' => $sub_start_date,':end_date' => $sub_end_date, ':id' => $sub_id, ':user_id' => $user_id, ':brand_id' => $brand_id));
+                } else {
+                    $sql = $db->prepare("INSERT INTO user_license (brand_id, user_id, start_date, end_date, status) VALUES (:brand_id, :user_id, :start_date, :end_date, :status)");
+                    $sql->execute(array(':brand_id' => $brand_id, ':user_id' => $user_id, ':start_date' => $sub_start_date, ':end_date' => $sub_end_date, ':status' => 1)); 
+                }
+                $count += $sql->rowCount();
+            } else if($access_role ==1 && $sub_pro_id=='' && $sub_id!='') {
+                $sql = $db->prepare("DELETE FROM user_license WHERE id = :id AND user_id = :user_id AND brand_id = :brand_id");
+                $sql->execute(array(':id' => $sub_id, ':user_id' => $user_id, ':brand_id' => $brand_id));
             }
-            $response->getBody()->write(
+            if( $count > 0 ) {
+                $response->getBody()->write(
 					json_encode(array(
 						"code" => 1,
 						"status" => 1,
-						"message" => "User profile update successfully",
-						"result" => $data
+						"message" => "User profile update successfully"
 					))
 				);
 			} else {

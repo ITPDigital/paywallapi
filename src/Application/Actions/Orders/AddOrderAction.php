@@ -53,15 +53,15 @@ class AddOrderAction implements RequestHandlerInterface
         }
         try {
             $brand_id = $request->getAttribute('brandid');
-            $comp_id = $request->getAttribute('compid');
+           // $comp_id = $request->getAttribute('compid');
 			$user_id = $request->getAttribute('userid');
             $product_id = isset($data['product_id']) ? $data["product_id"] : '';
             $plan_id = isset($data['plan_id']) ? $data["plan_id"] :  '';
-            $is_promo_applied = $data['is_promo_applied'];
+            $is_promo_applied = $data['is_promo_applied'] ? $data['is_promo_applied'] : 0;
             $promo_code = isset($data['promo_code']) ? $data["promo_code"] :  '';
             $promo_discount_id = isset($data['promo_discount_id']) ? $data["promo_discount_id"] :  0;
 
-            $this->logger->info('AddOrderAction: brand_id-'.$brand_id.'--comp_id--'.$comp_id.'--user-id'.$user_id);
+           // $this->logger->info('AddOrderAction: brand_id-'.$brand_id.'--comp_id--'.$comp_id.'--user-id'.$user_id);
             $this->logger->info('AddOrderAction: promo_code-'.$promo_code.'--promo_discount_id--'.$promo_discount_id);            
             $db =  $this->connection;
             $response = new Response();
@@ -77,7 +77,8 @@ class AddOrderAction implements RequestHandlerInterface
             // Price Calculation
             $base_price = $data->base_price;
             $discount_id = isset($data->discount_id) ? $data->discount_id :  0;
-            if ( $promo_discount_id ) {
+           // echo $is_promo_applied;exit;
+            if ($is_promo_applied==1 && $promo_discount_id!=0) {
                 $discount_value = $data->base_price;
                 $sql_disc = $db->prepare("SELECT pd.discount_value, md.promo_id FROM product_plan_discount AS pd INNER JOIN product_plan_promos as pp ON pp.promo_code = :promo_code INNER JOIN map_promo_discount AS md ON pd.id = md.discount_id AND pp.id = md.promo_id AND md.discount_id = :discount_id WHERE pd.id = :id");
                 $sql_disc->execute(array(':id' => $promo_discount_id, ':discount_id' => $promo_discount_id, ':promo_code' => $promo_code));
@@ -86,21 +87,23 @@ class AddOrderAction implements RequestHandlerInterface
                 $promo_discount_value = $data_disc->discount_value;
                 $final_price =  $discount_value - ($discount_value * ($promo_discount_value / 100));
             }
-            elseif ( $discount_id ){
+            else if ( $discount_id ){
               $final_price = $data->trial_price;
             }
             else {
               $final_price = $data->final_price;
             }
 
-			$sql = $db->prepare("INSERT INTO user_license (brand_id, user_id, product_plan_id, contract_length, offset, discount_id, promo_discount_id, base_price, final_price, start_date, end_date, last_payment_date, next_payment_date, status) VALUES (:brand_id, :user_id, :product_plan_id, :contract_length, :offset, :discount_id, :promo_discount_id, :base_price, :final_price, :start_date, :end_date, :last_payment_date, :next_payment_date, :status)");
-			$sql->execute(array(':brand_id' => $brand_id, ':user_id' => $user_id, ':product_plan_id' => $plan_id, ':contract_length' => $contract_length, ':offset' => $offset, ':discount_id' => $discount_id, 'promo_discount_id' => $promo_discount_id, ':base_price' => $base_price, ':final_price' => $final_price, ':start_date' => $start_date, ':end_date' => $end_date, ':last_payment_date' => $start_date, ':next_payment_date' => $end_date, ':status' => 1));
+			$sql = $db->prepare("INSERT INTO user_license (brand_id, user_id, product_id, product_plan_id, contract_length, offset, discount_id, promo_discount_id, base_price, final_price, start_date, end_date, last_payment_date, next_payment_date, status) VALUES (:brand_id, :user_id, :product_id, :product_plan_id, :contract_length, :offset, :discount_id, :promo_discount_id, :base_price, :final_price, :start_date, :end_date, :last_payment_date, :next_payment_date, :status)");
+			$sql->execute(array(':brand_id' => $brand_id, ':user_id' => $user_id, ':product_id' => $product_id, ':product_plan_id' => $plan_id, ':contract_length' => $contract_length, ':offset' => $offset, ':discount_id' => $discount_id, 'promo_discount_id' => $promo_discount_id, ':base_price' => $base_price, ':final_price' => $final_price, ':start_date' => $start_date, ':end_date' => $end_date, ':last_payment_date' => $start_date, ':next_payment_date' => $end_date, ':status' => 1));
 
   
             $count = $sql->rowCount();
             $lastinserid = $db->lastInsertId();
             if($count && $lastinserid) {
                 $this->logger->info('AddOrderAction: New Order has been created successfully for user_id-'.$user_id . 'and plan_id-'.$plan_id);
+                $user_sql = $db->prepare("UPDATE users set is_subscribed_user=:is_subscribed where id=:user_id and brand_id=:brand_id");
+                $user_sql->execute(array(':is_subscribed' => 1, ':user_id' => $user_id, ':brand_id' => $brand_id));
                 $response->getBody()->write(
                     json_encode(array(
                         "code" => 1,
