@@ -44,22 +44,27 @@ class ViewProductAction implements RequestHandlerInterface
             $response = new Response();
             if(count($data)>0){
                 //$sql = $db->prepare('SELECT pp.id,pp.plan_name,pp.plan_display_name,pp.plan_desc,pp.frequency,pp.final_price from map_plan_product mp LEFT JOIN product_plan pp ON mp.plan_id=pp.id  where mp.product_id=:product_id and mp.comp_id=:comp_id and pp.is_active=:status;');
-                $sql = $db->prepare('SELECT pp.id,pp.plan_name,pp.plan_display_name,pp.plan_desc,pp.frequency,pp.final_price,pp.currency,cc.symbol,mpd.discount_id,cp.display_name as frequency_text from map_plan_product mp LEFT JOIN product_plan pp ON mp.plan_id=pp.id LEFT JOIN const_currencies cc ON pp.currency=cc.disp_id LEFT JOIN map_plan_discount mpd on pp.id=mpd.plan_id LEFT JOIN const_periods cp on cp.disp_id=pp.frequency where mp.product_id=:product_id and mp.is_active=:status and mp.comp_id=:comp_id and pp.is_active=:status and mpd.type=:type and mpd.is_active=:status;');
-                $sql->execute(array(':product_id' => $id,':comp_id' => $comp_id,':status' => 1, ':type' => 1));
+               // $sql = $db->prepare('SELECT pp.id,pp.plan_name,pp.plan_display_name,pp.plan_desc,pp.frequency,pp.final_price,pp.currency,cc.symbol,mpd.discount_id,cp.display_name as frequency_text from map_plan_product mp LEFT JOIN product_plan pp ON mp.plan_id=pp.id LEFT JOIN const_currencies cc ON pp.currency=cc.disp_id LEFT JOIN map_plan_discount mpd on pp.id=mpd.plan_id LEFT JOIN const_periods cp on cp.disp_id=pp.frequency where mp.product_id=:product_id and mp.is_active=:status and mp.comp_id=:comp_id and pp.is_active=:status and  mpd.is_active=:status;');
+               $sql = $db->prepare('SELECT pp.id,pp.plan_name,pp.plan_display_name,pp.plan_desc,pp.frequency,pp.final_price,pp.currency,pp.discount_id,cc.symbol,cp.display_name as frequency_text FROM map_plan_product mp JOIN product_plan pp ON mp.plan_id=pp.id JOIN const_currencies cc ON pp.currency=cc.disp_id JOIN const_periods cp on cp.disp_id=pp.frequency WHERE mp.product_id=:product_id AND mp.comp_id=:comp_id AND mp.is_active=:status;');
+                
+               $sql->execute(array(':product_id' => $id,':comp_id' => $comp_id,':status' => 1));
                 $planDatas = $sql->fetchAll(PDO::FETCH_ASSOC);
                 $trialPrice;
                 foreach ($planDatas as $key => $planData) {
-                    $discSql = $db->prepare('SELECT * from product_plan_discount where id=:discount_id and is_active=:status');
-                    $discSql->execute(array(':discount_id' => (int)$planData['discount_id'],':status' => 1));
-                    $discData = $discSql->fetch(PDO::FETCH_ASSOC);
+                    $discount_id = (int)$planData['discount_id'];
+                    if($discount_id) {
+                        $discSql = $db->prepare('SELECT * from product_plan_discount where id=:discount_id and is_active=:status');
+                        $discSql->execute(array(':discount_id' => (int)$planData['discount_id'],':status' => 1));
+                        $discData = $discSql->fetch(PDO::FETCH_ASSOC);
 
-                    $finalPrice = (float)$planData['final_price'];
-                    if($discData['discount_type'] == 'PERCENTAGE') {
-                        $trialPrice = $finalPrice - (($finalPrice*(float)$discData['discount_value'])/100);
-                    } else if($discData['discount_type'] == 'AMOUNT') {
-                        $trialPrice = (float)$planData['final_price'] - (float)$discData['discount_value'];
+                        $finalPrice = (float)$planData['final_price'];
+                        if($discData['discount_type'] == 'PERCENTAGE') {
+                            $trialPrice = $finalPrice - (($finalPrice*(float)$discData['discount_value'])/100);
+                        } else if($discData['discount_type'] == 'AMOUNT') {
+                            $trialPrice = (float)$planData['final_price'] - (float)$discData['discount_value'];
+                        }
+                        $planDatas[$key]['trial_price'] = $planData['symbol'].''.number_format(floor($trialPrice*100)/100, 2);
                     }
-                    $planDatas[$key]['trial_price'] = $planData['symbol'].''.number_format(floor($trialPrice*100)/100, 2);
                 }
                 $data['plans'] = $planDatas;
                 $this->logger->info('ViewProductAction: Product found"'.$id);

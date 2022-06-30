@@ -68,12 +68,25 @@ use App\Application\Actions\PlanDiscounts\ViewProPlanDiscountAction;
 use App\Application\Actions\PlanDiscounts\DeleteProPlanDiscountAction;
 use App\Application\Actions\PlanDiscounts\UpdateProPlanDiscountAction;
 
-use App\Application\Actions\Constants\ListAllPeriodsByStatusAction;
-use App\Application\Actions\Constants\ListAllCurrenciesByStatusAction;
-use App\Application\Actions\Constants\ListAllUserRolesByStatusAction;
+use App\Application\Actions\Config\Periods\ListAllPeriodsByStatusAction;
+use App\Application\Actions\Config\Currency\ListAllCurrenciesByStatusAction;
+use App\Application\Actions\Config\UserRole\ListAllUserRolesByStatusAction;
+use App\Application\Actions\Config\Currency\ListAllCurrenciesAction;
+use App\Application\Actions\Config\Periods\ListAllPeriodsAction;
+use App\Application\Actions\Config\UserRole\ListAllUserRolesAction;
+use App\Application\Actions\Config\ContentCategory\ListAllContentCategoryAction;
+use App\Application\Actions\Config\ContentType\ListAllContentTypeAction;
+use App\Application\Actions\Config\MetActionType\ListAllMetActionTypeAction;
+use App\Application\Actions\Config\CancelReasons\ListAllCancelReasonsAction;
+use App\Application\Actions\Config\PaymentType\ListAllPaymentTypeAction;
 
 use App\Application\Actions\EmailTemplates\AddEmailTypeAction;
 use App\Application\Actions\EmailTemplates\ListEmailTypeAction;
+use App\Application\Actions\EmailTemplates\AddEmailAction;
+use App\Application\Actions\EmailTemplates\DeleteEmailAction;
+use App\Application\Actions\EmailTemplates\ListAllEmailAction;
+use App\Application\Actions\EmailTemplates\UpdateEmailAction;
+use App\Application\Actions\EmailTemplates\ViewEmailAction;
 
 use App\Application\Actions\Widgets\AddWidgetGroupAction;
 use App\Application\Actions\Widgets\ListWidgetGroupAction;
@@ -86,9 +99,12 @@ use App\Application\Actions\Widgets\UpdateWidgetAction;
 
 use App\Application\Actions\Orders\AddOrderAction;
 use App\Application\Actions\Orders\ViewOrderAction;
+use App\Application\Actions\Orders\ViewTransHistoryAction;
 
 use App\Application\Actions\Tracking\SiteAuthorizeAction;
 use App\Application\Actions\Tracking\GetBrandDetailsAction;
+
+use App\Application\Actions\Reports\ListAllReportsTypeAction;
 
 use Slim\App;
 use Slim\Interfaces\RouteCollectorProxyInterface as Group;
@@ -118,6 +134,42 @@ return function (App $app) {
         $response->getBody()->write('Hello world!');
         return $response;
     });
+	
+    $app->get('/pdf', function (Request $request, Response $response) {
+
+		$pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false, true);
+
+		$pdf->addPage();
+
+		
+		$html = '<h1 style="text-align:center;">Invoice</h1>
+<table cellpadding="1" cellspacing="1" border="1" style="text-align:center;">
+<tr><td>1</td></tr>
+<tr style="text-align:center;"><td>2</td></tr>
+<tr style="text-align:center;"><td>3</td></tr>
+<tr style="text-align:center;"><td>3</td></tr>
+<tr><td style="text-align:center;">4</td></tr>
+<tr><td style="text-align:center;">5</td></tr>
+<tr><td style="text-align:center;">6</td></tr>
+</table>';
+
+// output the HTML content
+$pdf->writeHTML($html, true, false, true, false, '');
+
+$content = $pdf->output();
+
+$response->getBody()->write($content);
+
+$response = $response
+    ->withHeader('Content-Type', 'application/pdf')
+    ->withHeader('Content-Disposition', 'attachment; filename="filename.pdf"');
+
+return $response;
+
+	
+	
+      //  return $response;
+    });	
 
     /*$app->group('/users', function (Group $group) {
         $group->get('', ListUsersAction::class);
@@ -126,7 +178,7 @@ return function (App $app) {
 
     $app->get('/db-test', function (Request $request, Response $response) {
         $db = $this->get(PDO::class);
-        $sth = $db->prepare("select * from email_type");
+        $sth = $db->prepare("select * from users limit 10");
         $sth->execute();
         $data = $sth->fetchAll(PDO::FETCH_ASSOC);
         $payload = json_encode($data);
@@ -157,7 +209,7 @@ return function (App $app) {
     //tracking actions
     //$app->post('/v1/authorize', SiteAuthorizeAction::class)->add(new SiteAuthMiddleware());
     $app->post('/v1/authorize', GetBrandDetailsAction::class);
-    $app->post('/v1/subscription/plans', ListSubBrandProductAction::class);
+    $app->post('/v1/subscription/plans', ListSubBrandProductAction::class);//index page
 
     //user actions
     $app->post('/login', LoginAction::class);
@@ -165,13 +217,8 @@ return function (App $app) {
     $app->post('/forgotpassword', ForgotPasswordAction::class);	
     $app->post('/reset-password/{token}', ResetPasswordAction::class);	
 
-    //admin actions
-   // $app->post('/admin/login', AdminLoginAction::class);
-    //$app->post('/admin/add', AddAdminUserAction::class);
-
-       $app->post('/admin/login', AdminLoginAction::class); 
-      // $app->post('/admin/user/add', AddAdminUserAction::class)->add(new UserMiddleware());
-      // $app->post('/v1/admin/customer/add', RegisterAction::class)->add(new UserMiddleware());	
+    //admin action
+    $app->post('/admin/login', AdminLoginAction::class); 	
 	
     $app->group('/v1/admin', function (Group $group) {
         $group->post('/changepwd', AdminChangePwdAction::class);
@@ -255,6 +302,14 @@ return function (App $app) {
         $group->get('/periods/{status}', ListAllPeriodsByStatusAction::class);
         $group->get('/currencies/{status}', ListAllCurrenciesByStatusAction::class);
         $group->get('/roles/{status}', ListAllUserRolesByStatusAction::class);
+        $group->get('/currencies', ListAllCurrenciesAction::class);
+        $group->get('/periods', ListAllPeriodsAction::class);
+        $group->get('/roles', ListAllUserRolesAction::class);
+        $group->get('/contentcategory', ListAllContentCategoryAction::class);
+        $group->get('/contenttype', ListAllContentTypeAction::class);
+        $group->get('/metacttype', ListAllMetActionTypeAction::class);
+        $group->get('/cancelreasons', ListAllCancelReasonsAction::class);
+        $group->get('/paymenttypes', ListAllPaymentTypeAction::class);
     })->add(new UserMiddleware());
 
     //Widgets
@@ -273,60 +328,25 @@ return function (App $app) {
     $app->group('/v1/email', function (Group $group) {
         $group->get('/type', ListEmailTypeAction::class);
         $group->post('/type/add', AddEmailTypeAction::class);
+        $group->get('', ListAllEmailAction::class);
+        $group->post('/add', AddEmailAction::class);
+        $group->post('/del/{id}/{status}', DeleteEmailAction::class);
+        $group->post('/update/{id}', UpdateEmailAction::class);
+        $group->get('/view/{id}', ViewEmailAction::class);
     })->add(new UserMiddleware());
 	
     //order actions
     $app->group('/v1/orders', function (Group $group) {
         $group->post('/add', AddOrderAction::class);
-        $group->get('/view/{userId}/{brandId}', ViewOrderAction::class);        
+        $group->get('/view/{userId}/{brandId}', ViewOrderAction::class);
+        $group->get('/{orderId}/account/{userId}/brand/{brandId}', ViewTransHistoryAction::class);     
+    })->add(new UserMiddleware());
+
+    //reports actions
+    $app->group('/v1/reports', function (Group $group) {
+        $group->get('', ListAllReportsTypeAction::class);
     })->add(new UserMiddleware());
      
-	 //$group->get('/v1/order', ListOrderAction::class);
-
-    /*$app->post('/changePwd', ChangePwdAction::class);	
-	$app->get('/viewUser', ViewUserAction::class);	
-	$app->post('/updateUser', UpdateUserAction::class);
-    $app->get('/getAllUsers', ListUserAction::class);
-	$app->post('/deleteUser', DeleteUserAction::class);*/
-
-    /*$app->post('/addBrand', AddBrandAction::class);	
-    $app->get('/viewBrand', ViewBrandAction::class);
-    $app->post('/deleteBrand', DeleteBrandAction::class);
-    $app->get('/getAllBrands', ListBrandAction::class);
-    $app->post('/updateBrand', UpdateBrandAction::class);
-    
-    $app->post('/addProduct', AddProductAction::class);	
-    $app->get('/viewProduct', ViewProductAction::class);
-    $app->post('/deleteProduct', DeleteProductAction::class);
-    $app->get('/getAllProducts', ListProductAction::class);
-    $app->get('/getBrandProducts', ListBrandProductAction::class);
-    $app->post('/updateProduct', UpdateProductAction::class);
-
-    $app->post('/addProPlan', AddProPlanAction::class);	
-    $app->get('/viewProPlan', ViewProPlanAction::class);
-    $app->post('/deleteProPlan', DeleteProPlanAction::class);
-    $app->get('/getAllProPlans', ListProPlanAction::class);
-    $app->post('/updateProPlan', UpdateProPlanAction::class);
-
-    $app->post('/addProPlanPromo', AddProPlanPromoAction::class);	
-    $app->get('/viewProPlanPromo', ViewProPlanPromoAction::class);
-    $app->post('/updateProPlanPromo', UpdateProPlanPromoAction::class);
-    $app->get('/getAllProPlanPromos', ListProPlanPromoAction::class);
-    $app->post('/deleteProPlanPromo', DeleteProPlanPromoAction::class);
-
-    $app->post('/addProPlanDiscount', AddProPlanDiscountAction::class);	
-    $app->get('/viewProPlanDiscount', ViewProPlanDiscountAction::class);
-    $app->post('/updateProPlanDiscount', UpdateProPlanDiscountAction::class);
-    $app->get('/getAllProPlanDiscount', ListProPlanDiscountAction::class);
-    $app->post('/deleteProPlanDiscount', DeleteProPlanDiscountAction::class);*/
-
-
-    //product plan features actions
-   // $app->post('/addProPlanFeature', AddProPlanFeatureAction::class);	
-   // $app->post('/deleteProPlanFeature', DeleteProPlanFeatureAction::class);
-   // $app->get('/getAllProPlanFeatures', ListProPlanFeatureAction::class);
-  //  $app->post('/updateProPlanFeature', UpdateProPlanFeatureAction::class);
-
 // Catch-all route to serve a 404 Not Found page if none of the routes match
 // NOTE: make sure this route is defined last
 $app->map(['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], '/{routes:.+}', function($req, $res) {
